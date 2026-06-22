@@ -33,11 +33,11 @@ function placeLogos(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet, clientLogo?: st
       ws.mergeCells("A2:A6");
       ws.mergeCells("B2:D6");
       const idClient = wb.addImage({ base64: clientLogo, extension: "png" });
-      ws.addImage(idSG, { tl: { col: 0.15, row: 2.4 }, ext: { width: 150, height: 56 } });
-      ws.addImage(idClient, { tl: { col: 1.2, row: 1.6 }, ext: { width: 150, height: 84 } });
+      ws.addImage(idSG, { tl: { col: 0.12, row: 2.5 }, ext: { width: 165, height: 52 } });
+      ws.addImage(idClient, { tl: { col: 1.25, row: 1.7 }, ext: { width: 140, height: 80 } });
     } else {
       ws.mergeCells("A2:D6");
-      ws.addImage(idSG, { tl: { col: 0.45, row: 1.9 }, ext: { width: 240, height: 88 } });
+      ws.addImage(idSG, { tl: { col: 0.55, row: 2.1 }, ext: { width: 240, height: 76 } });
     }
   } catch {
     /* logos opcionais */

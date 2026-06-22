@@ -33,11 +33,11 @@ function placeLogos(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet, clientLogo?: st
       ws.mergeCells("A2:A6");
       ws.mergeCells("B2:D6");
       const idClient = wb.addImage({ base64: clientLogo, extension: "png" });
-      ws.addImage(idSG, { tl: { col: 0.12, row: 2.5 }, ext: { width: 165, height: 52 } });
-      ws.addImage(idClient, { tl: { col: 1.25, row: 1.7 }, ext: { width: 140, height: 80 } });
+      ws.addImage(idSG, { tl: { col: 0.18, row: 2.55 }, ext: { width: 205, height: 65 } });
+      ws.addImage(idClient, { tl: { col: 1.35, row: 1.7 }, ext: { width: 150, height: 96 } });
     } else {
       ws.mergeCells("A2:D6");
-      ws.addImage(idSG, { tl: { col: 0.55, row: 2.1 }, ext: { width: 240, height: 76 } });
+      ws.addImage(idSG, { tl: { col: 0.6, row: 2.0 }, ext: { width: 250, height: 79 } });
     }
   } catch {
     /* logos opcionais */
@@ -65,11 +65,11 @@ function buildSheet(
   ws.getRow(1).height = 20;
 
   placeLogos(wb, ws, clientLogo);
-  ws.getRow(2).height = 22;
-  ws.getRow(3).height = 22;
-  ws.getRow(4).height = 22;
-  ws.getRow(5).height = 22;
-  ws.getRow(6).height = 22;
+  ws.getRow(2).height = 26;
+  ws.getRow(3).height = 26;
+  ws.getRow(4).height = 26;
+  ws.getRow(5).height = 26;
+  ws.getRow(6).height = 26;
 
   const mrows: [string, string | Date | null][] = [
     ["OBRA", meta.obra],
@@ -129,7 +129,7 @@ function buildSheet(
       };
     }
     const lines = Math.max(estLines(x.conteudo, 48), estLines(x.revisoes, 38), 1);
-    row.height = Math.min(90, Math.max(18, lines * 13.5));
+    row.height = Math.min(110, Math.max(32, lines * 15));
   });
 
   ws.pageSetup = {

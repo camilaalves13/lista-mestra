@@ -88,8 +88,21 @@ function buildSheet(
     cf.value = m[1] as ExcelJS.CellValue;
     if (m[0] === "DATA") cf.numFmt = "dd/mm/yyyy";
     cf.font = { name: "Calibri", size: 11 };
-    cf.alignment = { vertical: "middle" };
+    cf.alignment = { vertical: "middle", wrapText: true };
   });
+
+  // Bordas pontilhadas (hair) no bloco do cabeçalho, como no documento original.
+  const hair = side("hair");
+  const med = side("medium");
+  // Bloco de logos (mesclado A2:D6): moldura externa + separador pontilhado p/ os metadados
+  ws.getCell("A2").border = { left: med, right: hair, top: med, bottom: med };
+  // Metadados E2:F6: grade pontilhada; topo (linha 2) e base (linha 6) médios; direita média (borda da tabela)
+  for (let r = 2; r <= 6; r++) {
+    const top = r === 2 ? med : hair;
+    const bottom = r === 6 ? med : hair;
+    ws.getCell("E" + r).border = { left: hair, right: hair, top, bottom };
+    ws.getCell("F" + r).border = { left: hair, right: med, top, bottom };
+  }
 
   const head = ["ARQUIVO", "R E V", "DATA", "FORMATO", "CONTEÚDO", "REVISÕES REALIZADAS"];
   const hr = ws.getRow(7);
@@ -258,7 +271,7 @@ export async function exportMasterList(
   if (previousFile) {
     const ems = await readAllEmissions(previousFile);
     for (const e of ems) {
-      if (e.name === meta.emissao) continue; // não duplicar a emissão atual
+      if (e.name === meta.emissao) continue; // nao duplicar a emissao atual
       const ws = wb.addWorksheet(e.name);
       buildSheet(wb, ws, meta, e.data || meta.data, e.rows, opts.clientLogo);
     }

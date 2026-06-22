@@ -2,7 +2,6 @@ import ExcelJS from "exceljs";
 import type { MasterRow, ProjectMeta } from "./types";
 import { LOGO_SG } from "./logos";
 
-// Converte yyyy-mm-dd para Date em UTC (evita deslocamento de fuso / horário no Excel)
 function toDate(s: string): Date | null {
   if (!s) return null;
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -13,57 +12,50 @@ function toDate(s: string): Date | null {
 type BS = ExcelJS.BorderStyle;
 const side = (style: BS) => ({ style });
 
-// Estima a altura da linha a partir do conteúdo (quebras + wrap nas colunas largas)
 function estLines(text: string, widthChars: number): number {
   if (!text) return 1;
-  return text
-    .split("\n")
-    .reduce((acc, line) => acc + Math.max(1, Math.ceil(line.length / widthChars)), 0);
+  return text.split("\n").reduce((a, l) => a + Math.max(1, Math.ceil(l.length / widthChars)), 0);
 }
 
-// Aplica a regra: revisão 00 -> "EMISSÃO INICIAL" quando o campo estiver vazio
 function applyRules(rows: MasterRow[]): MasterRow[] {
   return rows.map((r) => {
     const revNum = parseInt(r.rev || "0", 10);
-    if (revNum === 0 && !(r.revisoes || "").trim()) {
-      return { ...r, revisoes: "EMISSÃO INICIAL" };
-    }
+    if (revNum === 0 && !(r.revisoes || "").trim()) return { ...r, revisoes: "EMISSÃO INICIAL" };
     return r;
   });
 }
 
+// Adiciona os logos. SG é a base; se houver logo de cliente, fica ao lado (A | B:D).
 function placeLogos(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet, clientLogo?: string | null) {
   try {
     const idSG = wb.addImage({ base64: LOGO_SG, extension: "png" });
     if (clientLogo) {
-      // SG na coluna A, logo do cliente em B:D
       ws.mergeCells("A2:A6");
       ws.mergeCells("B2:D6");
       const idClient = wb.addImage({ base64: clientLogo, extension: "png" });
-      ws.addImage(idSG, { tl: { col: 0.12, row: 2.7 }, ext: { width: 140, height: 52 } });
-      ws.addImage(idClient, { tl: { col: 1.15, row: 1.5 }, ext: { width: 120, height: 78 } });
+      ws.addImage(idSG, { tl: { col: 0.15, row: 2.4 }, ext: { width: 150, height: 56 } });
+      ws.addImage(idClient, { tl: { col: 1.2, row: 1.6 }, ext: { width: 150, height: 84 } });
     } else {
-      // Apenas SG, mesclado nas duas colunas (A:D)
       ws.mergeCells("A2:D6");
-      ws.addImage(idSG, { tl: { col: 0.7, row: 2.4 }, ext: { width: 180, height: 66 } });
+      ws.addImage(idSG, { tl: { col: 0.45, row: 1.9 }, ext: { width: 240, height: 88 } });
     }
   } catch {
     /* logos opcionais */
   }
 }
 
+// Constrói uma aba de emissão completa (cabeçalho + logos + tabela).
 function buildSheet(
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
   meta: ProjectMeta,
+  metaDate: string,
   rows: MasterRow[],
   clientLogo?: string | null
 ) {
   ws.views = [{ showGridLines: false }];
-  const widths = [39, 8, 14.5, 12.5, 50, 40];
-  widths.forEach((w, i) => (ws.getColumn(i + 1).width = w));
+  [39, 8, 14.5, 12.5, 50, 40].forEach((w, i) => (ws.getColumn(i + 1).width = w));
 
-  // Título
   ws.mergeCells("A1:F1");
   const title = ws.getCell("A1");
   title.value = "LISTA MESTRA DE PROJETOS";
@@ -72,31 +64,33 @@ function buildSheet(
   title.border = { top: side("medium"), left: side("medium"), right: side("medium"), bottom: side("medium") };
   ws.getRow(1).height = 20;
 
-  // Bloco de logos + metadados
   placeLogos(wb, ws, clientLogo);
-  ws.getRow(3).height = 30;
-  ws.getRow(4).height = 30;
-  const metaRows: [string, string | Date | null][] = [
+  ws.getRow(2).height = 22;
+  ws.getRow(3).height = 22;
+  ws.getRow(4).height = 22;
+  ws.getRow(5).height = 22;
+  ws.getRow(6).height = 22;
+
+  const mrows: [string, string | Date | null][] = [
     ["OBRA", meta.obra],
     ["ENDEREÇO", meta.endereco],
     ["PROJETO", meta.projeto],
     ["ETAPA", meta.etapa],
-    ["DATA", toDate(meta.data)],
+    ["DATA", toDate(metaDate)],
   ];
-  metaRows.forEach((mr, k) => {
+  mrows.forEach((m, k) => {
     const r = 2 + k;
     const ce = ws.getCell("E" + r);
-    ce.value = mr[0];
+    ce.value = m[0];
     ce.font = { name: "Calibri", size: 11, bold: true };
     ce.alignment = { vertical: "middle" };
     const cf = ws.getCell("F" + r);
-    cf.value = mr[1] as ExcelJS.CellValue;
-    if (mr[0] === "DATA") cf.numFmt = "dd/mm/yyyy";
+    cf.value = m[1] as ExcelJS.CellValue;
+    if (m[0] === "DATA") cf.numFmt = "dd/mm/yyyy";
     cf.font = { name: "Calibri", size: 11 };
     cf.alignment = { vertical: "middle" };
   });
 
-  // Cabeçalho da tabela (linha 7)
   const head = ["ARQUIVO", "R E V", "DATA", "FORMATO", "CONTEÚDO", "REVISÕES REALIZADAS"];
   const hr = ws.getRow(7);
   head.forEach((h, k) => {
@@ -109,7 +103,6 @@ function buildSheet(
   });
   hr.height = 18;
 
-  // Linhas de dados a partir da 8 — grade limpa com moldura externa média
   const finalRows = applyRules(rows);
   const first = 8;
   const last = first + finalRows.length - 1;
@@ -148,28 +141,131 @@ function buildSheet(
   };
 }
 
+// ---- leitura de uma planilha anterior ----
+interface Emission {
+  name: string;
+  data: string; // data da emissão (yyyy-mm-dd) lida do cabeçalho
+  rows: MasterRow[];
+}
+
+function readSheetRows(sheet: ExcelJS.Worksheet): { data: string; rows: MasterRow[] } {
+  let headerRow = -1;
+  const col: Record<string, number> = {};
+  let headerDate = "";
+  sheet.eachRow((row, rn) => {
+    row.eachCell((cell, cn) => {
+      const raw = cell.value;
+      const v = (raw == null ? "" : String(raw)).toUpperCase().replace(/\s/g, "");
+      if (v === "DATA" && headerRow < 0) {
+        // data do cabeçalho (coluna ao lado)
+        const next = row.getCell(cn + 1).value;
+        if (next instanceof Date) headerDate = next.toISOString().slice(0, 10);
+      }
+      if (v === "ARQUIVO") {
+        headerRow = rn;
+        col.arq = cn;
+      }
+      if (headerRow === rn) {
+        if (v.startsWith("REV") && !v.startsWith("REVIS")) col.rev = cn;
+        if (v === "DATA") col.data = cn;
+        if (v === "FORMATO") col.fmt = cn;
+        if (v.startsWith("CONTE")) col.cont = cn;
+        if (v.startsWith("REVIS")) col.revs = cn;
+      }
+    });
+  });
+  const rows: MasterRow[] = [];
+  if (headerRow > 0) {
+    const txt = (row: ExcelJS.Row, c?: number) => {
+      if (!c) return "";
+      const val = row.getCell(c)?.value as any;
+      if (val == null) return "";
+      if (val.richText) return val.richText.map((t: any) => t.text).join("");
+      if (val instanceof Date) return val.toISOString().slice(0, 10);
+      return String(val);
+    };
+    sheet.eachRow((row, rn) => {
+      if (rn <= headerRow) return;
+      const arq = col.arq ? row.getCell(col.arq).value : null;
+      if (!arq) return;
+      const dataVal = col.data ? row.getCell(col.data).value : null;
+      const dataStr = dataVal instanceof Date ? dataVal.toISOString().slice(0, 10) : "";
+      rows.push({
+        id: crypto.randomUUID(),
+        arquivo: String(arq).trim(),
+        rev: col.rev ? String(row.getCell(col.rev).value ?? "") : "",
+        data: dataStr,
+        formato: txt(row, col.fmt),
+        conteudo: txt(row, col.cont),
+        revisoes: txt(row, col.revs),
+        estado: "igual",
+      });
+    });
+  }
+  return { data: headerDate, rows };
+}
+
+async function readAllEmissions(file: File): Promise<Emission[]> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(await file.arrayBuffer());
+  const ems: Emission[] = [];
+  wb.eachSheet((ws) => {
+    if (/E\d+/i.test(ws.name)) {
+      const { data, rows } = readSheetRows(ws);
+      ems.push({ name: ws.name, data, rows });
+    }
+  });
+  ems.sort((a, b) => a.name.localeCompare(b.name));
+  return ems;
+}
+
+export interface ImportedPrev {
+  proximaEmissao: string;
+  rows: MasterRow[];
+}
+
+export async function importPrevious(file: File): Promise<ImportedPrev> {
+  const ems = await readAllEmissions(file);
+  let bestN = -1;
+  let latest: Emission | null = null;
+  for (const e of ems) {
+    const m = e.name.match(/E(\d+)/i);
+    const n = m ? parseInt(m[1], 10) : -1;
+    if (n > bestN) {
+      bestN = n;
+      latest = e;
+    }
+  }
+  const next = bestN >= 0 ? "E" + String(bestN + 1).padStart(2, "0") : "E00";
+  return { proximaEmissao: next, rows: latest ? latest.rows : [] };
+}
+
 export interface ExportOptions {
   clientLogo?: string | null;
 }
 
+// Gera SEMPRE um arquivo novo (não reescreve o arquivo anterior).
+// Se houver arquivo anterior, recria todas as emissões antigas como abas + a nova emissão.
 export async function exportMasterList(
   meta: ProjectMeta,
   rows: MasterRow[],
   previousFile: File | null,
   opts: ExportOptions = {}
 ): Promise<string> {
-  let wb: ExcelJS.Workbook;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "SG Projetos";
+
   if (previousFile) {
-    wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(await previousFile.arrayBuffer());
-    const existing = wb.getWorksheet(meta.emissao);
-    if (existing) wb.removeWorksheet(existing.id);
-  } else {
-    wb = new ExcelJS.Workbook();
-    wb.creator = "SG Projetos";
+    const ems = await readAllEmissions(previousFile);
+    for (const e of ems) {
+      if (e.name === meta.emissao) continue; // não duplicar a emissão atual
+      const ws = wb.addWorksheet(e.name);
+      buildSheet(wb, ws, meta, e.data || meta.data, e.rows, opts.clientLogo);
+    }
   }
+
   const ws = wb.addWorksheet(meta.emissao);
-  buildSheet(wb, ws, meta, rows, opts.clientLogo);
+  buildSheet(wb, ws, meta, meta.data, rows, opts.clientLogo);
 
   const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf], {
@@ -182,76 +278,4 @@ export async function exportMasterList(
   a.click();
   URL.revokeObjectURL(a.href);
   return name;
-}
-
-export interface ImportedPrev {
-  proximaEmissao: string;
-  rows: MasterRow[];
-}
-
-export async function importPrevious(file: File): Promise<ImportedPrev> {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(await file.arrayBuffer());
-  let best: ExcelJS.Worksheet | null = null;
-  let bestN = -1;
-  wb.eachSheet((ws) => {
-    const m = ws.name.match(/E(\d+)/i);
-    const n = m ? parseInt(m[1], 10) : -1;
-    if (n > bestN) {
-      bestN = n;
-      best = ws;
-    }
-  });
-  const rows: MasterRow[] = [];
-  if (best) {
-    const sheet = best as ExcelJS.Worksheet;
-    let headerRow = -1;
-    const col: Record<string, number> = {};
-    sheet.eachRow((row, rn) => {
-      row.eachCell((cell, cn) => {
-        const v = (cell.value == null ? "" : String(cell.value)).toUpperCase().replace(/\s/g, "");
-        if (v === "ARQUIVO") {
-          headerRow = rn;
-          col.arq = cn;
-        }
-        if (headerRow === rn) {
-          if (v.startsWith("REV") && !v.startsWith("REVIS")) col.rev = cn;
-          if (v === "DATA") col.data = cn;
-          if (v === "FORMATO") col.fmt = cn;
-          if (v.startsWith("CONTE")) col.cont = cn;
-          if (v.startsWith("REVIS")) col.revs = cn;
-        }
-      });
-    });
-    if (headerRow > 0) {
-      const txt = (row: ExcelJS.Row, c?: number) => {
-        if (!c) return "";
-        const cell = row.getCell(c);
-        const val = cell?.value as any;
-        if (val == null) return "";
-        if (val.richText) return val.richText.map((t: any) => t.text).join("");
-        if (val instanceof Date) return val.toISOString().slice(0, 10);
-        return String(val);
-      };
-      sheet.eachRow((row, rn) => {
-        if (rn <= headerRow) return;
-        const arq = col.arq ? row.getCell(col.arq).value : null;
-        if (!arq) return;
-        const dataVal = col.data ? row.getCell(col.data).value : null;
-        const dataStr = dataVal instanceof Date ? dataVal.toISOString().slice(0, 10) : "";
-        rows.push({
-          id: crypto.randomUUID(),
-          arquivo: String(arq).trim(),
-          rev: col.rev ? String(row.getCell(col.rev).value ?? "") : "",
-          data: dataStr,
-          formato: txt(row, col.fmt),
-          conteudo: txt(row, col.cont),
-          revisoes: txt(row, col.revs),
-          estado: "igual",
-        });
-      });
-    }
-  }
-  const next = bestN >= 0 ? "E" + String(bestN + 1).padStart(2, "0") : "E00";
-  return { proximaEmissao: next, rows };
 }

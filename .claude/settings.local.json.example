@@ -1,0 +1,21 @@
+{
+  "$comment": [
+    "PERSONAL overrides — copy to settings.local.json and gitignore it.",
+    "Merged on top of the team's settings.json. Use for YOUR machine only.",
+    "Never put team policy here (it won't be shared). Never commit this file."
+  ],
+
+  "$comment_mode": "DO NOT set defaultMode here unless you mean to. This file OVERRIDES the shared settings.json mode (precedence: managed > THIS FILE > settings.json > user-global). The shared config already enforces bypassPermissions for autonomous runs; setting 'default' or 'acceptEdits' here would SILENTLY DOWNGRADE it and you'd start getting prompted again. Only set it to TIGHTEN on purpose — e.g. defaultMode: 'plan' while you review what an agent is about to do, or 'default' on a client/prod repo. Options: default | acceptEdits | plan | bypassPermissions.",
+  "permissions": {
+    "$comment_allow": "Things YOU trust on your box that aren't team policy.",
+    "allow": [
+      "Bash(docker compose up:*)",
+      "Bash(docker compose down:*)"
+    ]
+  },
+
+  "$comment_env": "Per-developer env the agent may rely on (non-secret).",
+  "env": {
+    "EDITOR": "code --wait"
+  }
+}

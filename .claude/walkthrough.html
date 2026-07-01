@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flash Session — &lt;Change Title&gt;</title>
+<!--
+  Plank harness — flash-session walkthrough template.
+  ONE self-contained file. No external assets (inline CSS + SVG) so it opens
+  anywhere and pastes into Slack/Notion/email.
+
+  HOW TO USE
+  - Duplicate this file per change, or let `/walkthrough` fill it in.
+  - Edit the <section class="slide"> blocks. One idea per slide.
+  - Navigate: → / ← arrows, Space, or click the dots. Press F for fullscreen.
+  - The first slide reproduces the Spec→Plan→Work→Review→Release loop.
+-->
+<style>
+  :root{
+    --orange:#FF6B2C; --orange-soft:#FFF1EA;
+    --green:#1E9E6A; --green-soft:#E8F6EF;
+    --ink:#1A1A1A; --muted:#6B7280; --line:#E7E7E7; --bg:#FFFFFF;
+    --radius:16px; --maxw:980px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:radial-gradient(120% 120% at 50% 0%,#FFFDFB 0%,#F6F7F8 100%);
+    -webkit-font-smoothing:antialiased;
+  }
+  .deck{max-width:var(--maxw);margin:0 auto;padding:32px 24px 80px}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .brand .mark{width:34px;height:34px}
+  .brand h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.2px}
+  .brand .tag{margin-left:auto;font-size:12px;color:var(--muted);
+    border:1px solid var(--line);border-radius:999px;padding:4px 10px}
+
+  .stage{position:relative;min-height:62vh}
+  .slide{
+    display:none;background:var(--bg);border:1px solid var(--line);
+    border-radius:var(--radius);padding:40px 44px;
+    box-shadow:0 1px 0 rgba(0,0,0,.02),0 24px 60px -40px rgba(0,0,0,.25);
+    animation:fade .35s ease both;
+  }
+  .slide.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .kicker{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--orange);background:var(--orange-soft);
+    padding:5px 10px;border-radius:8px;margin-bottom:14px}
+  .slide h2{font-size:30px;line-height:1.15;margin:.1em 0 .35em}
+  .slide .lead{font-size:18px;color:var(--muted);margin:0 0 18px}
+  .slide ul{margin:.4em 0;padding-left:0;list-style:none}
+  .slide li{padding:9px 0 9px 30px;position:relative;border-bottom:1px dashed var(--line)}
+  .slide li:last-child{border-bottom:0}
+  .slide li::before{content:"";position:absolute;left:4px;top:15px;width:14px;height:14px;
+    border-radius:50%;background:var(--green-soft);
+    box-shadow:inset 0 0 0 2px var(--green)}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:.92em;background:#F3F4F6;padding:2px 6px;border-radius:6px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .card{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:#FCFCFD}
+  .card h3{margin:0 0 6px;font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .pill{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;margin:2px 4px 2px 0}
+  .pill.good{color:var(--green);background:var(--green-soft)}
+  .pill.warn{color:#B45309;background:#FEF3C7}
+
+  /* ---- loop diagram (slide 1) ---- */
+  .loop{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:8px 0 6px}
+  .node{position:relative;border:1px solid var(--line);border-radius:14px;
+    padding:16px 14px;text-align:center;background:#fff}
+  .node .num{position:absolute;top:8px;right:10px;font-size:11px;font-weight:700;color:var(--muted)}
+  .node .check{width:22px;height:22px;border-radius:50%;background:var(--green-soft);
+    display:flex;align-items:center;justify-content:center;margin:2px auto 8px;
+    color:var(--green);font-weight:800;font-size:13px}
+  .node strong{display:block;font-size:16px}
+  .node small{color:var(--muted);font-size:12px;line-height:1.35;display:block;margin-top:4px}
+  .node .badge{margin-top:10px;font-size:11px;font-weight:600;color:var(--orange);
+    background:var(--orange-soft);border-radius:999px;padding:3px 8px;display:inline-block}
+  .arrow{display:flex;align-items:center;justify-content:center;color:var(--orange);font-size:20px}
+  .payoffs{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:22px;
+    border-top:1px solid var(--line);padding-top:18px}
+  .payoffs div{font-size:13px}
+  .payoffs strong{display:block;font-size:14px}
+  .payoffs span{color:var(--muted)}
+
+  /* ---- nav ---- */
+  .nav{position:fixed;left:0;right:0;bottom:18px;display:flex;justify-content:center;
+    align-items:center;gap:14px}
+  .dots{display:flex;gap:8px}
+  .dot{width:9px;height:9px;border-radius:50%;background:#D6D6D6;border:0;cursor:pointer;padding:0}
+  .dot.active{background:var(--orange);transform:scale(1.25)}
+  .nbtn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:7px 12px;
+    cursor:pointer;font-size:13px;color:var(--ink)}
+  .nbtn:hover{border-color:var(--orange);color:var(--orange)}
+  .count{font-size:12px;color:var(--muted);min-width:46px;text-align:center}
+  @media(max-width:760px){
+    .loop,.payoffs{grid-template-columns:1fr}.arrow{display:none}
+    .grid2{grid-template-columns:1fr}.slide{padding:28px 22px}
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+  <div class="brand">
+    <!-- inline harness mark -->
+    <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+      <g fill="#FF6B2C">
+        <path d="M24 6c2 4 6 6 11 6-3 3-4 7-4 11h-4c0-3-1-5-3-7-2 2-3 4-3 7h-4c0-4-1-8-4-11 5 0 9-2 11-6z"/>
+        <circle cx="24" cy="30" r="5"/>
+        <path d="M14 34l-4 8h6l3-6zM34 34l4 8h-6l-3-6z"/>
+      </g>
+    </svg>
+    <h1>Flash Session</h1>
+    <span class="tag">~60 seconds · Plank harness</span>
+  </div>
+
+  <div class="stage" id="stage">
+
+    <!-- ░░ SLIDE 1 — THE LOOP (keep as opener; it frames every change) ░░ -->
+    <section class="slide active">
+      <span class="kicker">One loop · evidence at every step</span>
+      <h2>How this change was built</h2>
+      <p class="lead">Spec → Plan → Work → Review → Release. Each stage left proof.</p>
+      <div class="loop">
+        <div class="node"><span class="num">01</span><div class="check">✓</div><strong>Spec</strong><small>Define outcome &amp; unknowns</small><div class="badge">🔍 unknowns</div></div>
+        <div class="arrow">→</div>
+        <div class="node"><span class="num">02</span><div class="check">✓</div><strong>Plan</strong><small>Slice work + DoD</small><div class="badge">✅ DoD</div></div>
+        <div class="arrow">→</div>
+        <div class="node"><span class="num">03</span><div class="check">✓</div><strong>Work</strong><small>Smallest slice, TDD</small><div class="badge">🧪 TDD</div></div>
+      </div>
+      <div class="loop" style="grid-template-columns:repeat(3,1fr);max-width:620px;margin:14px auto 0">
+        <div class="node"><span class="num">04</span><div class="check">✓</div><strong>Review</strong><small>Independent + adversarial</small><div class="badge">🛡 review gate</div></div>
+        <div class="arrow">→</div>
+        <div class="node"><span class="num">05</span><div class="check">✓</div><strong>Release</strong><small>Package evidence, ship</small><div class="badge">🏅 release proof</div></div>
+      </div>
+      <div class="payoffs">
+        <div><strong>Reduce drift</strong><span>Clear scope &amp; DoD.</span></div>
+        <div><strong>Raise quality</strong><span>TDD + review by default.</span></div>
+        <div><strong>Ship safely</strong><span>Proof, not memory.</span></div>
+        <div><strong>Repeat faster</strong><span>Trust the loop.</span></div>
+      </div>
+    </section>
+
+    <!-- ░░ SLIDE 2 — WHAT & WHY ░░ -->
+    <section class="slide">
+      <span class="kicker">What &amp; why</span>
+      <h2>&lt;One-sentence outcome of this change&gt;</h2>
+      <p class="lead">The problem it solves, in plain terms.</p>
+      <ul>
+        <li>&lt;Who was hurting and how&gt;</li>
+        <li>&lt;What's true now that wasn't before&gt;</li>
+        <li>Ticket: <code>&lt;LINEAR-123&gt;</code></li>
+      </ul>
+    </section>
+
+    <!-- ░░ SLIDE 3 — THE DECISION (the "skip the arch doc" slide) ░░ -->
+    <section class="slide">
+      <span class="kicker">The decision</span>
+      <h2>&lt;The key choice we made&gt;</h2>
+      <p class="lead">So you don't have to read the arch doc.</p>
+      <div class="grid2">
+        <div class="card"><h3>We chose</h3>&lt;Option A — and the one-line reason&gt;</div>
+        <div class="card"><h3>We rejected</h3>&lt;Option B — and why it lost&gt;</div>
+      </div>
+    </section>
+
+    <!-- ░░ SLIDE 4 — WHAT CHANGED ░░ -->
+    <section class="slide">
+      <span class="kicker">What changed</span>
+      <h2>The 3–5 things that matter</h2>
+      <ul>
+        <li><code>&lt;path/to/file.ts:42&gt;</code> — &lt;one line&gt;</li>
+        <li><code>&lt;path/to/service.py:88&gt;</code> — &lt;one line&gt;</li>
+        <li><code>&lt;path/to/migration&gt;</code> — &lt;one line&gt;</li>
+      </ul>
+    </section>
+
+    <!-- ░░ SLIDE 5 — VERIFIED & RISK ░░ -->
+    <section class="slide">
+      <span class="kicker">Verified &amp; risk</span>
+      <h2>How we know it works</h2>
+      <div class="grid2">
+        <div class="card"><h3>Evidence</h3>
+          <span class="pill good">tests ✓</span>
+          <span class="pill good">lint ✓</span>
+          <span class="pill good">typecheck ✓</span>
+          <span class="pill good">review: approved</span>
+          <p style="margin:.6em 0 0">&lt;What the reviewer tried to break&gt;</p>
+        </div>
+        <div class="card"><h3>Watch out</h3>
+          <span class="pill warn">monitor</span>
+          <p style="margin:.6em 0 0">&lt;Anything to watch after release&gt;</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="nav">
+    <button class="nbtn" onclick="go(-1)">← Prev</button>
+    <div class="dots" id="dots"></div>
+    <span class="count" id="count"></span>
+    <button class="nbtn" onclick="go(1)">Next →</button>
+  </div>
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const dotsEl=document.getElementById('dots');
+  const countEl=document.getElementById('count');
+  let i=0;
+  slides.forEach((_,n)=>{const b=document.createElement('button');b.className='dot';
+    b.onclick=()=>set(n);dotsEl.appendChild(b);});
+  function set(n){i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    [...dotsEl.children].forEach((d,k)=>d.classList.toggle('active',k===i));
+    countEl.textContent=(i+1)+' / '+slides.length;}
+  function go(d){set(i+d);}
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key===' '){go(1);e.preventDefault();}
+    if(e.key==='ArrowLeft')go(-1);
+    if(e.key.toLowerCase()==='f'){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();}
+  });
+  set(0);
+</script>
+</body>
+</html>

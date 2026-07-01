@@ -9,3 +9,7 @@ dist-ssr
 vite.config.ts.timestamp-*.mjs
 *.tsbuildinfo
 _*.mjs
+
+# Claude harness — personal/local only (team config in .claude/settings.json is committed)
+.claude/settings.local.json
+.claude/logs/

@@ -135,3 +135,59 @@ export async function extractDataCarimbo(file: File): Promise<string> {
     return "";
   }
 }
+
+
+// Extração do TÍTULO do carimbo (canto do carimbo, rótulo "TÍTULO:").
+// O carimbo é rotacionado; usamos a geometria do item (transform + width) para
+// achar as linhas adjacentes ao rótulo que sobrepõem sua faixa vertical.
+interface TLine { str: string; x: number; yTop: number; yBot: number; }
+
+async function lineItems(page: any): Promise<TLine[]> {
+  const tc = await page.getTextContent();
+  const out: TLine[] = [];
+  for (const it of tc.items as any[]) {
+    const str = String(it.str || "");
+    if (!str.trim()) continue;
+    const t = it.transform || [1, 0, 0, 1, 0, 0];
+    const a = t[0], b = t[1], e = t[4], f = t[5];
+    const w = it.width || 0;
+    const fs = Math.hypot(a, b) || 1;
+    const yEnd = f + (b / fs) * w; // extensão ao longo da direção do texto
+    out.push({ str, x: e, yTop: Math.max(f, yEnd), yBot: Math.min(f, yEnd) });
+  }
+  return out;
+}
+
+function pickTitulo(items: TLine[]): string {
+  const label = items.find((i) => /^T[IÍ]TULO/i.test(i.str.trim()));
+  if (!label) return "";
+  const cands: { x: number; y: number; str: string }[] = [];
+  const inline = label.str.replace(/.*T[IÍ]TULO[:\s]*/i, "").trim();
+  if (inline) cands.push({ x: label.x, y: label.yTop, str: inline });
+  const ly0 = label.yBot, ly1 = label.yTop;
+  for (const it of items) {
+    if (it === label) continue;
+    if (it.x <= label.x + 2 || it.x > label.x + 170) continue;
+    const ov = Math.min(ly1, it.yTop) - Math.max(ly0, it.yBot);
+    if (ov > 3) cands.push({ x: it.x, y: it.yTop, str: it.str.trim() });
+  }
+  cands.sort((p, q) => p.x - q.x || q.y - p.y);
+  return cands.map((c) => c.str).join(" ").replace(/\s+/g, " ").trim();
+}
+
+export async function extractTitulo(file: File): Promise<string> {
+  try {
+    const pdfjs = await loadPdfjs();
+    const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    const order = doc.numPages > 1 ? [doc.numPages, 1] : [1];
+    for (const n of order) {
+      const page = await doc.getPage(n);
+      const items = await lineItems(page);
+      const t = pickTitulo(items);
+      if (t) return t;
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}

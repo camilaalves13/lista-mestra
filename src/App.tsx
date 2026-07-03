@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { FolderOpen, FileSpreadsheet, Download, FileText, Image as ImageIcon } from "lucide-react";
 import { emptyMeta, emptyRow, toISODate, isAfterDay, type MasterRow, type ProjectMeta } from "@/lib/types";
 import { dedupeByFiles, type ParsedFile } from "@/lib/parse";
-import { extractFormato, extractDataCarimbo } from "@/lib/pdf";
+import { extractFormato, extractDataCarimbo, extractTitulo } from "@/lib/pdf";
 import { exportMasterList, importPrevious } from "@/lib/xlsx";
 import { LOGO_LOG } from "@/lib/logos";
 
@@ -28,6 +28,7 @@ export default function App() {
   const [useFileDate, setUseFileDate] = useState(true);
   const [extractPdf, setExtractPdf] = useState(true);
   const [stampDate, setStampDate] = useState(true);
+  const [readTitulo, setReadTitulo] = useState(true);
   // Logo do cliente (SG é sempre a base). Projeto LOG -> inclui a logo da LOG.
   const [includeClientLogo, setIncludeClientLogo] = useState(true);
   const [clientLogo, setClientLogo] = useState<string>(LOGO_LOG); // base64 sem prefixo
@@ -66,22 +67,24 @@ export default function App() {
     let okD = 0;
     const stampDates: string[] = [];
     for (const p of parsed) {
-      const [fmt, dataCarimbo] = await Promise.all([
+      const [fmt, dataCarimbo, tituloCarimbo] = await Promise.all([
         extractFormato(p.file),
         stampDate ? extractDataCarimbo(p.file) : Promise.resolve(""),
+        readTitulo ? extractTitulo(p.file) : Promise.resolve(""),
       ]);
       if (fmt) okF++;
       if (dataCarimbo) {
         okD++;
         stampDates.push(dataCarimbo);
       }
-      if (fmt || dataCarimbo) {
+      if (fmt || dataCarimbo || tituloCarimbo) {
         setRows((rs) =>
           rs.map((r) => {
             if (r.arquivo !== p.referencia) return r;
             let nr = r;
             if (fmt && !r.formato) nr = { ...nr, formato: fmt };
             if (dataCarimbo) nr = { ...nr, data: dataCarimbo };
+            if (tituloCarimbo) nr = { ...nr, conteudo: tituloCarimbo };
             return nr;
           })
         );
@@ -286,6 +289,12 @@ export default function App() {
                 onChange={setStampDate}
                 title="Usar a DATA do carimbo do PDF na coluna DATA"
                 desc="Lê o campo DATA do carimbo da prancha e usa como data da revisão (prioridade sobre a data do arquivo)."
+              />
+              <Toggle
+                checked={readTitulo}
+                onChange={setReadTitulo}
+                title="Usar o TÍTULO do carimbo do PDF na coluna CONTEÚDO"
+                desc="Lê o campo TÍTULO do carimbo da prancha e preenche a coluna CONTEÚDO."
               />
             </div>
 

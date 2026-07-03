@@ -175,6 +175,23 @@ function pickTitulo(items: TLine[]): string {
   return cands.map((c) => c.str).join(" ").replace(/\s+/g, " ").trim();
 }
 
+
+// Correção de digitação (extensível) + normalização leve de espaçamento do TÍTULO.
+const TITULO_TYPOS: Record<string, string> = {
+  FACAHDAS: "FACHADAS",
+};
+
+function normalizeTitulo(s: string): string {
+  if (!s) return "";
+  let t = s.replace(/\s+/g, " ").trim();
+  for (const wrong in TITULO_TYPOS) {
+    t = t.replace(new RegExp("\\b" + wrong + "\\b", "gi"), TITULO_TYPOS[wrong]);
+  }
+  t = t.replace(/,(?=\S)/g, ", ");          // espaço após vírgula
+  t = t.replace(/\s*-\s+|\s+-\s*/g, " - ");  // hífen separador -> " - "
+  return t.trim();
+}
+
 export async function extractTitulo(file: File): Promise<string> {
   try {
     const pdfjs = await loadPdfjs();
@@ -184,7 +201,7 @@ export async function extractTitulo(file: File): Promise<string> {
       const page = await doc.getPage(n);
       const items = await lineItems(page);
       const t = pickTitulo(items);
-      if (t) return t;
+      if (t) return normalizeTitulo(t);
     }
     return "";
   } catch {

@@ -64,13 +64,17 @@ export default function App() {
     setStatus({ kind: "info", msg: "Lendo FORMATO e DATA dos PDFs…" });
     let okF = 0;
     let okD = 0;
+    const stampDates: string[] = [];
     for (const p of parsed) {
       const [fmt, dataCarimbo] = await Promise.all([
         extractFormato(p.file),
         stampDate ? extractDataCarimbo(p.file) : Promise.resolve(""),
       ]);
       if (fmt) okF++;
-      if (dataCarimbo) okD++;
+      if (dataCarimbo) {
+        okD++;
+        stampDates.push(dataCarimbo);
+      }
       if (fmt || dataCarimbo) {
         setRows((rs) =>
           rs.map((r) => {
@@ -82,6 +86,12 @@ export default function App() {
           })
         );
       }
+    }
+    if (stampDate && stampDates.length) {
+      const freq: Record<string, number> = {};
+      for (const d of stampDates) freq[d] = (freq[d] || 0) + 1;
+      const headerDate = Object.keys(freq).sort((a, b) => freq[b] - freq[a])[0];
+      if (headerDate) patchMeta({ data: headerDate });
     }
     setStatus({
       kind: okF || okD ? "ok" : "info",

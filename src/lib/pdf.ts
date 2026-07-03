@@ -85,3 +85,53 @@ export async function extractFormato(file: File): Promise<string> {
     return "";
   }
 }
+
+
+// Extração da DATA do carimbo (campo "DATA" do bloco de identificação da prancha).
+const DATE_RE = /\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\b/;
+
+function toISODateStr(d: string, m: string, y: string): string {
+  if (y.length === 2) y = "20" + y;
+  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+}
+
+// Escolhe a data mais próxima (espacialmente) de um rótulo "DATA"; sem rótulo, a mais frequente.
+function pickDateByLabel(items: Item[]): string | null {
+  const labels = items.filter((i) => /^DATA\b/i.test(i.str.trim()));
+  const dated: { iso: string; x: number; y: number }[] = [];
+  for (const it of items) {
+    const m = it.str.match(DATE_RE);
+    if (m) dated.push({ iso: toISODateStr(m[1], m[2], m[3]), x: it.x, y: it.y });
+  }
+  if (!dated.length) return null;
+  if (!labels.length) {
+    const freq: Record<string, number> = {};
+    for (const d of dated) freq[d.iso] = (freq[d.iso] || 0) + 1;
+    return Object.keys(freq).sort((a, b) => freq[b] - freq[a])[0];
+  }
+  let best: { iso: string; d: number } | null = null;
+  for (const lb of labels) {
+    for (const dt of dated) {
+      const dist = Math.hypot(lb.x - dt.x, lb.y - dt.y);
+      if (!best || dist < best.d) best = { iso: dt.iso, d: dist };
+    }
+  }
+  return best ? best.iso : null;
+}
+
+export async function extractDataCarimbo(file: File): Promise<string> {
+  try {
+    const pdfjs = await loadPdfjs();
+    const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    const order = doc.numPages > 1 ? [doc.numPages, 1] : [1];
+    for (const n of order) {
+      const page = await doc.getPage(n);
+      const items = await pageItems(page);
+      const d = pickDateByLabel(items);
+      if (d) return d;
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}

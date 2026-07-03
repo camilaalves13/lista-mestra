@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { FolderOpen, FileSpreadsheet, Download, FileText, Image as ImageIcon } from "lucide-react";
 import { emptyMeta, emptyRow, toISODate, isAfterDay, type MasterRow, type ProjectMeta } from "@/lib/types";
 import { dedupeByFiles, type ParsedFile } from "@/lib/parse";
-import { extractFormato } from "@/lib/pdf";
+import { extractFormato, extractDataCarimbo } from "@/lib/pdf";
 import { exportMasterList, importPrevious } from "@/lib/xlsx";
 import { LOGO_LOG } from "@/lib/logos";
 
@@ -27,6 +27,7 @@ export default function App() {
   const [autoRevise, setAutoRevise] = useState(true);
   const [useFileDate, setUseFileDate] = useState(true);
   const [extractPdf, setExtractPdf] = useState(true);
+  const [stampDate, setStampDate] = useState(true);
   // Logo do cliente (SG é sempre a base). Projeto LOG -> inclui a logo da LOG.
   const [includeClientLogo, setIncludeClientLogo] = useState(true);
   const [clientLogo, setClientLogo] = useState<string>(LOGO_LOG); // base64 sem prefixo
@@ -60,20 +61,31 @@ export default function App() {
   };
 
   const runFormatoExtraction = async (parsed: ParsedFile[]) => {
-    setStatus({ kind: "info", msg: "Lendo FORMATO dos PDFs…" });
-    let ok = 0;
+    setStatus({ kind: "info", msg: "Lendo FORMATO e DATA dos PDFs…" });
+    let okF = 0;
+    let okD = 0;
     for (const p of parsed) {
-      const fmt = await extractFormato(p.file);
-      if (fmt) {
-        ok++;
-        setRows((rs) => rs.map((r) => (r.arquivo === p.referencia && !r.formato ? { ...r, formato: fmt } : r)));
+      const [fmt, dataCarimbo] = await Promise.all([
+        extractFormato(p.file),
+        stampDate ? extractDataCarimbo(p.file) : Promise.resolve(""),
+      ]);
+      if (fmt) okF++;
+      if (dataCarimbo) okD++;
+      if (fmt || dataCarimbo) {
+        setRows((rs) =>
+          rs.map((r) => {
+            if (r.arquivo !== p.referencia) return r;
+            let nr = r;
+            if (fmt && !r.formato) nr = { ...nr, formato: fmt };
+            if (dataCarimbo) nr = { ...nr, data: dataCarimbo };
+            return nr;
+          })
+        );
       }
     }
     setStatus({
-      kind: ok ? "ok" : "info",
-      msg: ok
-        ? `FORMATO lido de ${ok}/${parsed.length} PDF(s). Confira os que ficaram em branco.`
-        : "Não foi possível ler o FORMATO dos PDFs (carimbo provavelmente em imagem). Preencha manualmente.",
+      kind: okF || okD ? "ok" : "info",
+      msg: `FORMATO: ${okF}/${parsed.length} PDF(s)${stampDate ? ` · DATA do carimbo: ${okD}/${parsed.length}` : ""}. Confira os que ficaram em branco.`,
     });
   };
 
@@ -258,6 +270,12 @@ export default function App() {
                 onChange={setExtractPdf}
                 title="Ler o FORMATO do carimbo do PDF"
                 desc="Procura o rótulo FORMATO na prancha e usa o valor ao lado dele. Ajustável manualmente."
+              />
+              <Toggle
+                checked={stampDate}
+                onChange={setStampDate}
+                title="Usar a DATA do carimbo do PDF na coluna DATA"
+                desc="Lê o campo DATA do carimbo da prancha e usa como data da revisão (prioridade sobre a data do arquivo)."
               />
             </div>
 

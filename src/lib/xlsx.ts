@@ -17,6 +17,17 @@ function estLines(text: string, widthChars: number): number {
   return text.split("\n").reduce((a, l) => a + Math.max(1, Math.ceil(l.length / widthChars)), 0);
 }
 
+// Preenchimento das linhas de dados da tabela:
+// "Branco, plano de fundo 1, mais escuro 25%" (#BFBFBF).
+export const FILL_LINHAS_DADOS = "FFBFBFBF";
+
+// Altura da linha do ENDEREÇO no cabeçalho (linha 3). A coluna F tem 40 de largura,
+// então endereços longos precisam de mais de uma linha para não sair cortados.
+// Endereços curtos mantêm os 26 padrão das demais linhas do cabeçalho.
+export function alturaLinhaEndereco(endereco: string): number {
+  return Math.min(96, Math.max(26, estLines(endereco, 36) * 15 + 8));
+}
+
 function applyRules(rows: MasterRow[]): MasterRow[] {
   return rows.map((r) => {
     const revNum = parseInt(r.rev || "0", 10);
@@ -66,7 +77,7 @@ function buildSheet(
 
   placeLogos(wb, ws, clientLogo);
   ws.getRow(2).height = 26;
-  ws.getRow(3).height = 26;
+  ws.getRow(3).height = alturaLinhaEndereco(meta.endereco);
   ws.getRow(4).height = 26;
   ws.getRow(5).height = 26;
   ws.getRow(6).height = 26;
@@ -134,6 +145,7 @@ function buildSheet(
       const cell = row.getCell(c);
       cell.font = c === 1 ? { name: "Calibri", size: 11 } : { name: "Arial", size: 9 };
       cell.alignment = { horizontal: c === 2 || c === 4 ? "center" : "left", vertical: "middle", wrapText: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: FILL_LINHAS_DADOS } };
       cell.border = {
         top: side("thin"),
         bottom: side(isLast ? "medium" : "thin"),

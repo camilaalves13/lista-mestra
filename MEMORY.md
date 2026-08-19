@@ -20,6 +20,13 @@
   fixa 26 e passa a crescer conforme o texto (`alturaLinhaEndereco`, mín. 26 / máx. 96).
   Motivo: com o ENDEREÇO real do LOGSLS (137 caracteres numa coluna de largura 40) o texto
   saía cortado na impressão. Endereços curtos continuam com 26 — layout inalterado.
+- `2026-08-19` — **Layout do `.xlsx`**: valores do cabeçalho com `horizontal: "left"` explícito.
+  A DATA é um valor de data e o Excel a alinhava à direita, destoando de OBRA/ENDEREÇO/PROJETO/ETAPA.
+- `2026-08-19` — **Logos centralizados e sem distorção**: `centralizarImagem()` calcula a âncora
+  a partir das larguras das colunas e das alturas reais das linhas do cabeçalho, e escala pela
+  proporção lida do próprio PNG (`tamanhoPng`). Antes as dimensões eram fixas no código — a logo
+  do cliente saía esticada (150×96 para uma imagem 967×740) e a posição não acompanhava a
+  altura variável da linha do ENDEREÇO.
 
 ## Failure log (what bit us — do not repeat)
 <!-- A seção de maior valor. Cada entrada: o que quebrou → causa raiz → a regra agora. -->

@@ -58,27 +58,33 @@ export interface AncoraImagem {
   ext: { width: number; height: number };
 }
 
-// Centraliza a imagem no bloco mesclado preservando a proporção original.
+// Tamanhos dos logos em CENTÍMETROS, como no documento de referência da SG.
+export const TAMANHO_LOGO_SG = { largura: 5.63, altura: 1.5 };
+export const TAMANHO_LOGO_CLIENTE = { largura: 3.4, altura: 2.56 };
+
+// cm -> pixels (96 dpi), que é a unidade que o ExcelJS usa em `ext`.
+export const cmParaPx = (cm: number) => (cm * 96) / 2.54;
+
+// Centraliza uma imagem de tamanho conhecido (cm) no bloco mesclado.
 // larguras: colunas do bloco (unidade do Excel); alturas: linhas do bloco (pt).
 // colInicio/linhaInicio são índices 0-based (coluna A = 0, linha 2 = 1).
 export function centralizarImagem(
   larguras: number[],
   alturas: number[],
-  img: { width: number; height: number },
+  tamanhoCm: { largura: number; altura: number },
   colInicio: number,
-  linhaInicio: number,
-  margem = 10
+  linhaInicio: number
 ): AncoraImagem {
   const colsPx = larguras.map(colParaPx);
   const linhasPx = alturas.map(linhaParaPx);
   const totalW = colsPx.reduce((a, b) => a + b, 0);
   const totalH = linhasPx.reduce((a, b) => a + b, 0);
-  const escala = Math.min(
-    Math.max(1, totalW - margem * 2) / img.width,
-    Math.max(1, totalH - margem * 2) / img.height
-  );
-  const width = img.width * escala;
-  const height = img.height * escala;
+  // Se o bloco for menor que o tamanho pedido, encolhe mantendo a proporção pedida.
+  const alvoW = cmParaPx(tamanhoCm.largura);
+  const alvoH = cmParaPx(tamanhoCm.altura);
+  const escala = Math.min(1, totalW / alvoW, totalH / alvoH);
+  const width = alvoW * escala;
+  const height = alvoH * escala;
 
   // Converte um deslocamento em px numa âncora fracionária (coluna/linha + fração).
   const ancora = (deslocamento: number, tamanhos: number[], inicio: number) => {
@@ -106,19 +112,18 @@ function placeLogos(
 ) {
   try {
     const idSG = wb.addImage({ base64: LOGO_SG, extension: "png" });
-    const sg = tamanhoPng(LOGO_SG);
     if (clientLogo) {
       ws.mergeCells("A2:A6");
       ws.mergeCells("B2:D6");
       const idClient = wb.addImage({ base64: clientLogo, extension: "png" });
-      ws.addImage(idSG, centralizarImagem([LARGURAS[0]], alturasCabecalho, sg, 0, 1));
+      ws.addImage(idSG, centralizarImagem([LARGURAS[0]], alturasCabecalho, TAMANHO_LOGO_SG, 0, 1));
       ws.addImage(
         idClient,
-        centralizarImagem(LARGURAS.slice(1, 4), alturasCabecalho, tamanhoPng(clientLogo), 1, 1)
+        centralizarImagem(LARGURAS.slice(1, 4), alturasCabecalho, TAMANHO_LOGO_CLIENTE, 1, 1)
       );
     } else {
       ws.mergeCells("A2:D6");
-      ws.addImage(idSG, centralizarImagem(LARGURAS.slice(0, 4), alturasCabecalho, sg, 0, 1));
+      ws.addImage(idSG, centralizarImagem(LARGURAS.slice(0, 4), alturasCabecalho, TAMANHO_LOGO_SG, 0, 1));
     }
   } catch {
     /* logos opcionais */

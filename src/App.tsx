@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { FolderOpen, FileSpreadsheet, Download, FileText, Image as ImageIcon } from "lucide-react";
 import { emptyMeta, emptyRow, toISODate, isAfterDay, type MasterRow, type ProjectMeta } from "@/lib/types";
 import { dedupeByFiles, type ParsedFile } from "@/lib/parse";
-import { extractFormato, extractDataCarimbo, extractTitulo } from "@/lib/pdf";
+import { extractCarimbo } from "@/lib/pdf";
 import { exportMasterList, importPrevious } from "@/lib/xlsx";
 import { LOGO_LOG } from "@/lib/logos";
 
@@ -66,17 +66,19 @@ export default function App() {
     let okF = 0;
     let okD = 0;
     const stampDates: string[] = [];
+    const semLeitura: string[] = [];
     for (const p of parsed) {
-      const [fmt, dataCarimbo, tituloCarimbo] = await Promise.all([
-        extractFormato(p.file),
-        stampDate ? extractDataCarimbo(p.file) : Promise.resolve(""),
-        readTitulo ? extractTitulo(p.file) : Promise.resolve(""),
-      ]);
+      // Uma única abertura do PDF por prancha (ver extractCarimbo em lib/pdf.ts).
+      const { formato: fmt, data: dataCarimbo, titulo: tituloCarimbo } = await extractCarimbo(p.file, {
+        data: stampDate,
+        titulo: readTitulo,
+      });
       if (fmt) okF++;
       if (dataCarimbo) {
         okD++;
         stampDates.push(dataCarimbo);
       }
+      if (!fmt && !dataCarimbo && !tituloCarimbo) semLeitura.push(p.referencia);
       if (fmt || dataCarimbo || tituloCarimbo) {
         setRows((rs) =>
           rs.map((r) => {
@@ -96,9 +98,12 @@ export default function App() {
       const headerDate = Object.keys(freq).sort((a, b) => freq[b] - freq[a])[0];
       if (headerDate) patchMeta({ data: headerDate });
     }
+    const detalhe = semLeitura.length
+      ? ` · Não foi possível ler o carimbo de: ${semLeitura.join(", ")}. Preencha à mão ou arraste a pasta de novo.`
+      : "";
     setStatus({
-      kind: okF || okD ? "ok" : "info",
-      msg: `FORMATO: ${okF}/${parsed.length} PDF(s)${stampDate ? ` · DATA do carimbo: ${okD}/${parsed.length}` : ""}. Confira os que ficaram em branco.`,
+      kind: semLeitura.length ? "info" : okF || okD ? "ok" : "info",
+      msg: `FORMATO: ${okF}/${parsed.length} PDF(s)${stampDate ? ` · DATA do carimbo: ${okD}/${parsed.length}` : ""}.${detalhe || " Confira os que ficaram em branco."}`,
     });
   };
 

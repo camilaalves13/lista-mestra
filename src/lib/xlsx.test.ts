@@ -1,6 +1,16 @@
 import { describe, it, expect } from "vitest";
 import ExcelJS from "exceljs";
-import { FILL_LINHAS_DADOS, LARGURAS, alturaLinhaEndereco, centralizarImagem, exportMasterList, tamanhoPng } from "./xlsx";
+import {
+  FILL_LINHAS_DADOS,
+  LARGURAS,
+  TAMANHO_LOGO_CLIENTE,
+  TAMANHO_LOGO_SG,
+  alturaLinhaEndereco,
+  centralizarImagem,
+  cmParaPx,
+  exportMasterList,
+  tamanhoPng,
+} from "./xlsx";
 import { LOGO_SG, LOGO_LOG } from "./logos";
 import { emptyMeta, emptyRow, type ProjectMeta } from "./types";
 
@@ -92,26 +102,32 @@ describe("tamanhoPng", () => {
 describe("centralizarImagem", () => {
   const alturas = [26, 68, 26, 26, 26]; // bloco do cabeçalho (linhas 2..6)
 
-  it("preserva a proporção original da imagem", () => {
-    const img = tamanhoPng(LOGO_LOG);
-    const a = centralizarImagem(LARGURAS.slice(1, 4), alturas, img, 1, 1);
-    expect(a.ext.width / a.ext.height).toBeCloseTo(img.width / img.height, 3);
+  it("usa exatamente o tamanho pedido em cm", () => {
+    const a = centralizarImagem(LARGURAS.slice(1, 4), alturas, TAMANHO_LOGO_CLIENTE, 1, 1);
+    expect(a.ext.width).toBeCloseTo(cmParaPx(TAMANHO_LOGO_CLIENTE.largura), 3);
+    expect(a.ext.height).toBeCloseTo(cmParaPx(TAMANHO_LOGO_CLIENTE.altura), 3);
   });
 
   it("cabe dentro do bloco mesclado", () => {
-    const img = tamanhoPng(LOGO_SG);
     const larguras = LARGURAS.slice(0, 1);
-    const a = centralizarImagem(larguras, alturas, img, 0, 1);
+    const a = centralizarImagem(larguras, alturas, TAMANHO_LOGO_SG, 0, 1);
     const totalW = larguras.reduce((s, w) => s + colPx(w), 0);
     const totalH = alturas.reduce((s, h) => s + linhaPx(h), 0);
     expect(a.ext.width).toBeLessThanOrEqual(totalW);
     expect(a.ext.height).toBeLessThanOrEqual(totalH);
   });
 
+  it("encolhe mantendo a proporção pedida quando o bloco é menor", () => {
+    const a = centralizarImagem([4], [10], TAMANHO_LOGO_SG, 0, 1);
+    expect(a.ext.width / a.ext.height).toBeCloseTo(
+      TAMANHO_LOGO_SG.largura / TAMANHO_LOGO_SG.altura,
+      3
+    );
+  });
+
   it("sobra a mesma margem dos dois lados (centralizado)", () => {
-    const img = tamanhoPng(LOGO_LOG);
     const larguras = LARGURAS.slice(1, 4);
-    const a = centralizarImagem(larguras, alturas, img, 1, 1);
+    const a = centralizarImagem(larguras, alturas, TAMANHO_LOGO_CLIENTE, 1, 1);
     const colsPx = larguras.map(colPx);
     const totalW = colsPx.reduce((s, w) => s + w, 0);
     // reconstrói o deslocamento a partir da âncora fracionária
@@ -123,7 +139,7 @@ describe("centralizarImagem", () => {
   });
 
   it("ancora dentro do bloco, nunca antes dele", () => {
-    const a = centralizarImagem(LARGURAS.slice(0, 4), alturas, tamanhoPng(LOGO_SG), 0, 1);
+    const a = centralizarImagem(LARGURAS.slice(0, 4), alturas, TAMANHO_LOGO_SG, 0, 1);
     expect(a.tl.col).toBeGreaterThanOrEqual(0);
     expect(a.tl.col).toBeLessThan(4);
     expect(a.tl.row).toBeGreaterThanOrEqual(1);

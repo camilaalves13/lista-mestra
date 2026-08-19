@@ -22,11 +22,13 @@
   saía cortado na impressão. Endereços curtos continuam com 26 — layout inalterado.
 - `2026-08-19` — **Layout do `.xlsx`**: valores do cabeçalho com `horizontal: "left"` explícito.
   A DATA é um valor de data e o Excel a alinhava à direita, destoando de OBRA/ENDEREÇO/PROJETO/ETAPA.
-- `2026-08-19` — **Logos centralizados e sem distorção**: `centralizarImagem()` calcula a âncora
-  a partir das larguras das colunas e das alturas reais das linhas do cabeçalho, e escala pela
-  proporção lida do próprio PNG (`tamanhoPng`). Antes as dimensões eram fixas no código — a logo
-  do cliente saía esticada (150×96 para uma imagem 967×740) e a posição não acompanhava a
-  altura variável da linha do ENDEREÇO.
+- `2026-08-19` — **Logos centralizados, com tamanho definido pela Camila**: SG 5,63 × 1,5 cm e
+  cliente 3,4 × 2,56 cm (`TAMANHO_LOGO_SG` / `TAMANHO_LOGO_CLIENTE`, em cm — o documento de
+  referência da SG usa essas medidas). `centralizarImagem()` converte para px (96 dpi) e calcula
+  a âncora a partir das larguras das colunas e das alturas REAIS das linhas do cabeçalho, então o
+  centro acompanha a linha variável do ENDEREÇO. Antes as dimensões e a âncora eram fixas no
+  código e a logo do cliente saía esticada. Obs.: 5,63 × 1,5 é levemente mais largo que a
+  proporção do PNG da SG (385×122); mantido assim por ser a medida do documento oficial.
 
 ## Failure log (what bit us — do not repeat)
 <!-- A seção de maior valor. Cada entrada: o que quebrou → causa raiz → a regra agora. -->

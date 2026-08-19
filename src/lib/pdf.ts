@@ -14,15 +14,46 @@ interface Item {
 }
 
 let pdfjsPromise: Promise<any> | null = null;
+let loaderOverride: (() => Promise<any>) | null = null;
+
+// Injeta um pdf.js falso nos testes. Em produção fica sempre nulo (usa o CDN).
+export function _setPdfjsLoaderForTests(fn: (() => Promise<any>) | null): void {
+  loaderOverride = fn;
+  pdfjsPromise = null;
+}
+
 async function loadPdfjs(): Promise<any> {
   if (!pdfjsPromise) {
-    pdfjsPromise = import(/* @vite-ignore */ PDFJS_URL).then((mod: any) => {
+    pdfjsPromise = (loaderOverride ? loaderOverride() : import(/* @vite-ignore */ PDFJS_URL)).then((mod: any) => {
       const lib = mod.default || mod;
-      lib.GlobalWorkerOptions.workerSrc = WORKER_URL;
+      if (lib.GlobalWorkerOptions) lib.GlobalWorkerOptions.workerSrc = WORKER_URL;
       return lib;
     });
   }
   return pdfjsPromise;
+}
+
+// Abre o PDF, roda a leitura e SEMPRE libera o documento (doc.destroy()).
+// Sem isso, uma pasta com dezenas de pranchas acumula documentos abertos no
+// worker do pdf.js e as últimas leituras começam a falhar em silêncio.
+async function comDocumento<T>(file: File, fn: (doc: any) => Promise<T>): Promise<T> {
+  const pdfjs = await loadPdfjs();
+  const task = pdfjs.getDocument({ data: await file.arrayBuffer() });
+  const doc = await task.promise;
+  try {
+    return await fn(doc);
+  } finally {
+    try {
+      await doc.destroy();
+    } catch {
+      /* liberar é best-effort */
+    }
+  }
+}
+
+// Páginas na ordem em que o carimbo costuma estar: última primeiro, depois a primeira.
+function ordemPaginas(doc: any): number[] {
+  return doc.numPages > 1 ? [doc.numPages, 1] : [1];
 }
 
 function pickByLabel(items: Item[]): string | null {
@@ -67,23 +98,18 @@ async function pageItems(page: any): Promise<Item[]> {
     .filter((i: Item) => i.str.trim().length > 0);
 }
 
-export async function extractFormato(file: File): Promise<string> {
-  try {
-    const pdfjs = await loadPdfjs();
-    const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-    const order = doc.numPages > 1 ? [doc.numPages, 1] : [1];
-    for (const n of order) {
-      const page = await doc.getPage(n);
-      const items = await pageItems(page);
-      const byLabel = pickByLabel(items);
-      if (byLabel) return byLabel;
-    }
-    const page = await doc.getPage(doc.numPages);
-    const items = await pageItems(page);
-    return mostFrequent(items) || "";
-  } catch {
-    return "";
+async function lerFormato(doc: any): Promise<string> {
+  for (const n of ordemPaginas(doc)) {
+    const items = await pageItems(await doc.getPage(n));
+    const byLabel = pickByLabel(items);
+    if (byLabel) return byLabel;
   }
+  const items = await pageItems(await doc.getPage(doc.numPages));
+  return mostFrequent(items) || "";
+}
+
+export async function extractFormato(file: File): Promise<string> {
+  return (await extractCarimbo(file)).formato;
 }
 
 
@@ -119,21 +145,17 @@ function pickDateByLabel(items: Item[]): string | null {
   return best ? best.iso : null;
 }
 
-export async function extractDataCarimbo(file: File): Promise<string> {
-  try {
-    const pdfjs = await loadPdfjs();
-    const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-    const order = doc.numPages > 1 ? [doc.numPages, 1] : [1];
-    for (const n of order) {
-      const page = await doc.getPage(n);
-      const items = await pageItems(page);
-      const d = pickDateByLabel(items);
-      if (d) return d;
-    }
-    return "";
-  } catch {
-    return "";
+async function lerData(doc: any): Promise<string> {
+  for (const n of ordemPaginas(doc)) {
+    const items = await pageItems(await doc.getPage(n));
+    const d = pickDateByLabel(items);
+    if (d) return d;
   }
+  return "";
+}
+
+export async function extractDataCarimbo(file: File): Promise<string> {
+  return (await extractCarimbo(file)).data;
 }
 
 
@@ -192,19 +214,61 @@ function normalizeTitulo(s: string): string {
   return t.trim();
 }
 
+async function lerTitulo(doc: any): Promise<string> {
+  for (const n of ordemPaginas(doc)) {
+    const items = await lineItems(await doc.getPage(n));
+    const t = pickTitulo(items);
+    if (t) return normalizeTitulo(t);
+  }
+  return "";
+}
+
 export async function extractTitulo(file: File): Promise<string> {
+  return (await extractCarimbo(file)).titulo;
+}
+
+// ---- leitura única do carimbo ----
+
+export interface Carimbo {
+  formato: string;
+  data: string;
+  titulo: string;
+}
+
+export interface CarimboOpcoes {
+  data?: boolean;   // ler a DATA do carimbo (padrão: true)
+  titulo?: boolean; // ler o TÍTULO do carimbo (padrão: true)
+}
+
+const CARIMBO_VAZIO: Carimbo = { formato: "", data: "", titulo: "" };
+
+// Lê FORMATO, DATA e TÍTULO abrindo o PDF UMA única vez.
+// Antes cada campo abria o próprio documento (3 aberturas por prancha, nenhuma
+// liberada): numa pasta com dezenas de arquivos as últimas leituras voltavam
+// vazias e a linha caía para a data de modificação do arquivo.
+// Se a leitura falhar ou vier completamente vazia, tenta mais uma vez.
+export async function extractCarimbo(file: File, opts: CarimboOpcoes = {}): Promise<Carimbo> {
+  const querData = opts.data !== false;
+  const querTitulo = opts.titulo !== false;
+
+  const tentativa = async (): Promise<Carimbo> =>
+    comDocumento(file, async (doc) => ({
+      formato: await lerFormato(doc),
+      data: querData ? await lerData(doc) : "",
+      titulo: querTitulo ? await lerTitulo(doc) : "",
+    }));
+
+  const vazio = (c: Carimbo) => !c.formato && !c.data && !c.titulo;
+
   try {
-    const pdfjs = await loadPdfjs();
-    const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-    const order = doc.numPages > 1 ? [doc.numPages, 1] : [1];
-    for (const n of order) {
-      const page = await doc.getPage(n);
-      const items = await lineItems(page);
-      const t = pickTitulo(items);
-      if (t) return normalizeTitulo(t);
-    }
-    return "";
+    const c = await tentativa();
+    if (!vazio(c)) return c;
   } catch {
-    return "";
+    /* cai na segunda tentativa */
+  }
+  try {
+    return await tentativa();
+  } catch {
+    return { ...CARIMBO_VAZIO };
   }
 }

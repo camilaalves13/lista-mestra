@@ -9,6 +9,9 @@ function toDate(s: string): Date | null {
   return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
 }
 
+// Larguras das colunas A..F (unidade do Excel).
+export const LARGURAS = [39, 8, 14.5, 12.5, 50, 40];
+
 type BS = ExcelJS.BorderStyle;
 const side = (style: BS) => ({ style });
 
@@ -36,19 +39,86 @@ function applyRules(rows: MasterRow[]): MasterRow[] {
   });
 }
 
+// ---- posicionamento de imagens ----
+
+// Largura de coluna do Excel -> pixels (fonte padrão Calibri 11) e altura em pt -> pixels.
+const colParaPx = (largura: number) => Math.round(largura * 7 + 5);
+const linhaParaPx = (altura: number) => (altura * 4) / 3;
+
+// Lê largura/altura do cabeçalho IHDR de um PNG em base64 (sem prefixo data:).
+export function tamanhoPng(base64: string): { width: number; height: number } {
+  const bin = atob(base64.replace(/^data:[^,]+,/, "").slice(0, 64));
+  const byte = (i: number) => bin.charCodeAt(i);
+  const uint32 = (i: number) => (byte(i) << 24) | (byte(i + 1) << 16) | (byte(i + 2) << 8) | byte(i + 3);
+  return { width: uint32(16) >>> 0, height: uint32(20) >>> 0 };
+}
+
+export interface AncoraImagem {
+  tl: { col: number; row: number };
+  ext: { width: number; height: number };
+}
+
+// Centraliza a imagem no bloco mesclado preservando a proporção original.
+// larguras: colunas do bloco (unidade do Excel); alturas: linhas do bloco (pt).
+// colInicio/linhaInicio são índices 0-based (coluna A = 0, linha 2 = 1).
+export function centralizarImagem(
+  larguras: number[],
+  alturas: number[],
+  img: { width: number; height: number },
+  colInicio: number,
+  linhaInicio: number,
+  margem = 10
+): AncoraImagem {
+  const colsPx = larguras.map(colParaPx);
+  const linhasPx = alturas.map(linhaParaPx);
+  const totalW = colsPx.reduce((a, b) => a + b, 0);
+  const totalH = linhasPx.reduce((a, b) => a + b, 0);
+  const escala = Math.min(
+    Math.max(1, totalW - margem * 2) / img.width,
+    Math.max(1, totalH - margem * 2) / img.height
+  );
+  const width = img.width * escala;
+  const height = img.height * escala;
+
+  // Converte um deslocamento em px numa âncora fracionária (coluna/linha + fração).
+  const ancora = (deslocamento: number, tamanhos: number[], inicio: number) => {
+    let resto = Math.max(0, deslocamento);
+    let i = 0;
+    while (i < tamanhos.length - 1 && resto >= tamanhos[i]) {
+      resto -= tamanhos[i];
+      i++;
+    }
+    return inicio + i + (tamanhos[i] ? resto / tamanhos[i] : 0);
+  };
+
+  return {
+    tl: { col: ancora((totalW - width) / 2, colsPx, colInicio), row: ancora((totalH - height) / 2, linhasPx, linhaInicio) },
+    ext: { width, height },
+  };
+}
+
 // Adiciona os logos. SG é a base; se houver logo de cliente, fica ao lado (A | B:D).
-function placeLogos(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet, clientLogo?: string | null) {
+function placeLogos(
+  wb: ExcelJS.Workbook,
+  ws: ExcelJS.Worksheet,
+  alturasCabecalho: number[],
+  clientLogo?: string | null
+) {
   try {
     const idSG = wb.addImage({ base64: LOGO_SG, extension: "png" });
+    const sg = tamanhoPng(LOGO_SG);
     if (clientLogo) {
       ws.mergeCells("A2:A6");
       ws.mergeCells("B2:D6");
       const idClient = wb.addImage({ base64: clientLogo, extension: "png" });
-      ws.addImage(idSG, { tl: { col: 0.18, row: 2.55 }, ext: { width: 205, height: 65 } });
-      ws.addImage(idClient, { tl: { col: 1.35, row: 1.7 }, ext: { width: 150, height: 96 } });
+      ws.addImage(idSG, centralizarImagem([LARGURAS[0]], alturasCabecalho, sg, 0, 1));
+      ws.addImage(
+        idClient,
+        centralizarImagem(LARGURAS.slice(1, 4), alturasCabecalho, tamanhoPng(clientLogo), 1, 1)
+      );
     } else {
       ws.mergeCells("A2:D6");
-      ws.addImage(idSG, { tl: { col: 0.6, row: 2.0 }, ext: { width: 250, height: 79 } });
+      ws.addImage(idSG, centralizarImagem(LARGURAS.slice(0, 4), alturasCabecalho, sg, 0, 1));
     }
   } catch {
     /* logos opcionais */
@@ -65,7 +135,7 @@ function buildSheet(
   clientLogo?: string | null
 ) {
   ws.views = [{ showGridLines: false }];
-  [39, 8, 14.5, 12.5, 50, 40].forEach((w, i) => (ws.getColumn(i + 1).width = w));
+  LARGURAS.forEach((w, i) => (ws.getColumn(i + 1).width = w));
 
   ws.mergeCells("A1:F1");
   const title = ws.getCell("A1");
@@ -75,12 +145,11 @@ function buildSheet(
   title.border = { top: side("medium"), left: side("medium"), right: side("medium"), bottom: side("medium") };
   ws.getRow(1).height = 20;
 
-  placeLogos(wb, ws, clientLogo);
-  ws.getRow(2).height = 26;
-  ws.getRow(3).height = alturaLinhaEndereco(meta.endereco);
-  ws.getRow(4).height = 26;
-  ws.getRow(5).height = 26;
-  ws.getRow(6).height = 26;
+  // As alturas precisam ser conhecidas ANTES de posicionar os logos: a linha do
+  // ENDEREÇO é variável e o centro do bloco mesclado depende dela.
+  const alturasCabecalho = [26, alturaLinhaEndereco(meta.endereco), 26, 26, 26];
+  alturasCabecalho.forEach((h, i) => (ws.getRow(2 + i).height = h));
+  placeLogos(wb, ws, alturasCabecalho, clientLogo);
 
   const mrows: [string, string | Date | null][] = [
     ["OBRA", meta.obra],
@@ -99,7 +168,9 @@ function buildSheet(
     cf.value = m[1] as ExcelJS.CellValue;
     if (m[0] === "DATA") cf.numFmt = "dd/mm/yyyy";
     cf.font = { name: "Calibri", size: 11 };
-    cf.alignment = { vertical: "middle", wrapText: true };
+    // horizontal "left" explicito: a DATA e um valor de data e o Excel alinharia
+    // a direita por padrao, destoando de OBRA/ENDERECO/PROJETO/ETAPA.
+    cf.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
   });
 
   // Bordas pontilhadas (hair) no bloco do cabeçalho, como no documento original.

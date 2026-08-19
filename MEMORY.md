@@ -29,6 +29,16 @@
   **Root cause:** a pasta local no Windows não recebia `git fetch` desde junho; as sessões
   anteriores publicaram a partir de um clone separado. **Rule now:** `git fetch origin` +
   conferir `git status -sb` ANTES de commitar nessa pasta; nunca `push --force` nela.
+- `2026-08-18` — **What broke:** ao arrastar a pasta com 29 pranchas, a última
+  (`LOGSLS-ARQ-311-PE-SUB2_GER`) veio sem FORMATO e sem CONTEÚDO, e com a data de
+  modificação do arquivo (17/03) em vez da data do carimbo (12/03).
+  **Root cause:** cada campo abria o próprio documento pdf.js (3 aberturas por prancha,
+  87 no total) e nenhuma chamava `doc.destroy()`; o worker acumulava documentos e as
+  últimas leituras falhavam. O `catch` devolvia `""` em silêncio e a linha caía para o
+  `lastModified` do arquivo. O PDF em si está íntegro — lido isoladamente extrai normal.
+  **Rule now:** `extractCarimbo()` abre o PDF UMA vez por prancha, libera com `destroy()`
+  no `finally` e tenta de novo se vier tudo vazio; a UI passa a listar por nome as
+  pranchas cujo carimbo não foi lido, em vez de só contar.
 
 ## Sharp edges / gotchas
 - Datas: use `toISODate`/`isAfterDay` de `src/lib/types.ts`. Manipular `Date` direto
